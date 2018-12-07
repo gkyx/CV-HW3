@@ -19,8 +19,10 @@ class Window(QtWidgets.QMainWindow):
 		self.setWindowState(QtCore.Qt.WindowMaximized)
     
 		self.Img = None
+		self.Img2 = None
 		self.outputImg = None
 		self.isInputOpen = False
+		self.isTargetOpen = False
 
 		mainMenu = self.menuBar()
 
@@ -28,10 +30,13 @@ class Window(QtWidgets.QMainWindow):
 
 		# file menu actions
 
-		openAction = QtWidgets.QAction("Open", self)
-		openAction.triggered.connect(self.open_image)
+		openInputAction = QtWidgets.QAction("Open Input", self)
+		openInputAction.triggered.connect(self.open_input_image)
 
-		saveAction = QtWidgets.QAction("Save", self)
+		openTargetAction = QtWidgets.QAction("Open Target", self)
+		openTargetAction.triggered.connect(self.open_target_image)
+
+		saveAction = QtWidgets.QAction("Save the Output", self)
 		saveAction.triggered.connect(self.save_image)
 
 		exitAction = QtWidgets.QAction("Exit", self)
@@ -43,7 +48,8 @@ class Window(QtWidgets.QMainWindow):
 		morphAction = QtWidgets.QAction("Morph", self)
 		morphAction.triggered.connect(self.morph)
 
-		fileMenu.addAction(openAction)
+		fileMenu.addAction(openInputAction)
+		fileMenu.addAction(openTargetAction)
 		fileMenu.addAction(saveAction)
 		fileMenu.addAction(exitAction)
 
@@ -86,21 +92,39 @@ class Window(QtWidgets.QMainWindow):
 		self.show()
 
 
-	def open_image(self):
-		# Image
-		self.Img = cv2.imread("input.png")
+	def open_input_image(self):
+		if not self.isInputOpen:
+			# Image
+			self.Img = cv2.imread("input.png")
 
-		R, C, B = self.Img.shape
-		qImg = QtGui.QImage(self.Img.data, C, R, 3 * C, QtGui.QImage.Format_RGB888).rgbSwapped()
-		
-		#pix = QtGui.QPixmap('color1.png')
-		self.label = QtWidgets.QLabel(self.centralwidget)
-		pix = QtGui.QPixmap(qImg)
-		self.label.setPixmap(pix)
-		self.label.setAlignment(QtCore.Qt.AlignCenter)
-		self.label.setStyleSheet("border:0px")
-		
-		self.horizontalLayout.addWidget(self.label)
+			R, C, B = self.Img.shape
+			qImg = QtGui.QImage(self.Img.data, C, R, 3 * C, QtGui.QImage.Format_RGB888).rgbSwapped()
+
+			self.label = QtWidgets.QLabel(self.centralwidget)
+			pix = QtGui.QPixmap(qImg)
+			self.label.setPixmap(pix)
+			self.label.setAlignment(QtCore.Qt.AlignCenter)
+			self.label.setStyleSheet("border:0px")
+
+			self.VerticalLayout1.addWidget(self.label)
+			self.isInputOpen = True
+
+	def open_target_image(self):
+		if not self.isTargetOpen:			
+			# Image
+			self.Img2 = cv2.imread("target.png")
+
+			R, C, B = self.Img2.shape
+			qImg = QtGui.QImage(self.Img2.data, C, R, 3 * C, QtGui.QImage.Format_RGB888).rgbSwapped()
+
+			self.label2 = QtWidgets.QLabel(self.centralwidget)
+			pix2 = QtGui.QPixmap(qImg)
+			self.label2.setPixmap(pix2)
+			self.label2.setAlignment(QtCore.Qt.AlignCenter)
+			self.label2.setStyleSheet("border:0px")
+
+			self.VerticalLayout2.addWidget(self.label2)
+			self.isTargetOpen = True
 
 	def save_image(self):
 		cv2.imwrite("./output-image.png", self.outputImg)
