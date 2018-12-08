@@ -252,14 +252,14 @@ class Window(QtWidgets.QMainWindow):
 
 		for i in range(self.outputImg.shape[0]):
 			for j in range(self.outputImg.shape[1]):
-				triangleNo = self.whichTriangle((i,j))
+				triangleNo = self.whichTriangle((j,i))
 				if(triangleNo == -1):
 					self.outputImg[i][j][:] = self.Img[i][j][:]
 				else:
 					mappedCoordinates = invAffineCoeffs[triangleNo].dot(np.array([j,i,1]))
-					#print(triangleNo)
+					print(triangleNo)
 					#print(invAffineCoeffs[triangleNo])
-					#print(mappedCoordinates)
+					print(mappedCoordinates, " - ", j, ",", i)
 					self.outputImg[i][j][:] = self.bilinearInterpolation(mappedCoordinates[1],mappedCoordinates[0])
 
 		R, C, B = self.outputImg.shape
@@ -296,7 +296,7 @@ class Window(QtWidgets.QMainWindow):
 
 			self.affineTransCoeffs.append(invMArray.dot(bArray))
 
-			if(i == 15):
+			if(i == 7):
 				print(mArray)
 				print(invMArray)
 				print(bArray)
