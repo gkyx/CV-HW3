@@ -2,7 +2,7 @@ import cv2
 import sys
 import numpy as np
 import matplotlib.pyplot as plt
-from math import floor, pi, exp
+from math import floor, pi, exp, ceil
 from PyQt5 import QtGui, QtCore, QtWidgets
 
 ############
@@ -28,6 +28,7 @@ class Window(QtWidgets.QMainWindow):
 		self.points2 = None
 		self.isInputOpen = False
 		self.isTargetOpen = False
+		self.triangleNumber = 0
 
 		mainMenu = self.menuBar()
 
@@ -157,7 +158,6 @@ class Window(QtWidgets.QMainWindow):
 		triangleList = subdiv.getTriangleList()
 		size = img.shape
 		r = (0, 0, size[1], size[0])
-	
 		for t in triangleList :
 		
 			p1 = (t[0], t[1])
@@ -204,6 +204,8 @@ class Window(QtWidgets.QMainWindow):
 		for point in self.points2:
 			self.subdiv2.insert(point)
 
+		self.triangleNumber = len(self.subdiv1.getTriangleList())
+
 		self.draw_delaunay(triangulatedInput, self.subdiv1, (255, 255, 255))
 		self.draw_delaunay(triangulatedTarget, self.subdiv2, (255, 255, 255))
 		self.draw_delaunay(triangulationOutputImg, self.subdiv2, (255, 255, 255))
@@ -240,19 +242,53 @@ class Window(QtWidgets.QMainWindow):
 	def morph(self):
 		self.affineTransformEstimation(self.subdiv1, self.subdiv2)
 
+		self.outputImg = np.zeros([self.Img.shape[0], self.Img.shape[1], self.Img.shape[2]], dtype=np.uint8)
+
+		invAffineCoeffs = []
+
+		for i in range(self.triangleNumber):
+			#print(np.array([[self.affineTransCoeffs[i][0], self.affineTransCoeffs[i][1], self.affineTransCoeffs[i][2]], [self.affineTransCoeffs[i][3], self.affineTransCoeffs[i][4], self.affineTransCoeffs[i][5]], [0,0,1]]))
+			invAffineCoeffs.append(np.linalg.inv(np.array([[self.affineTransCoeffs[i][0], self.affineTransCoeffs[i][1], self.affineTransCoeffs[i][2]], [self.affineTransCoeffs[i][3], self.affineTransCoeffs[i][4], self.affineTransCoeffs[i][5]], [0,0,1]])))
+
+		for i in range(self.outputImg.shape[0]):
+			for j in range(self.outputImg.shape[1]):
+				triangleNo = self.whichTriangle((i,j))
+				if(triangleNo == -1):
+					self.outputImg[i][j][:] = self.Img[i][j][:]
+				else:
+					mappedCoordinates = invAffineCoeffs[triangleNo].dot(np.array([j,i,1]))
+					#print(triangleNo)
+					#print(invAffineCoeffs[triangleNo])
+					#print(mappedCoordinates)
+					self.outputImg[i][j][:] = self.bilinearInterpolation(mappedCoordinates[1],mappedCoordinates[0])
+
+		R, C, B = self.outputImg.shape
+		qImg = QtGui.QImage(self.outputImg.data, C, R, 3 * C, QtGui.QImage.Format_RGB888).rgbSwapped()
+		pix = QtGui.QPixmap(qImg)
+		self.label3.setPixmap(pix)
+
+
 	def affineTransformEstimation(self, sd1, sd2):
 		inputTriangles = sd1.getTriangleList()
 		targetTriangles = sd2.getTriangleList()
-		for i in range(len(inputTriangles)):
-			
-			inputPoint1 = (inputTriangles[i][0], inputTriangles[i][1])
-			inputPoint2 = (inputTriangles[i][2], inputTriangles[i][3])
-			inputPoint3 = (inputTriangles[i][4], inputTriangles[i][5])
 
+		print(inputTriangles)
+		print(targetTriangles)
+
+		for i in range(len(targetTriangles)):
 			targetPoint1 = (targetTriangles[i][0], targetTriangles[i][1])
 			targetPoint2 = (targetTriangles[i][2], targetTriangles[i][3])
 			targetPoint3 = (targetTriangles[i][4], targetTriangles[i][5])
-			
+
+			if (not abs(targetPoint1[0]) > self.Img2.shape[1]) and (not abs(targetPoint1[1]) > self.Img2.shape[0]) and (not abs(targetPoint2[0]) > self.Img2.shape[1]) and (not abs(targetPoint2[1]) > self.Img2.shape[0]) and (not abs(targetPoint3[0]) > self.Img2.shape[1]) and (not abs(targetPoint3[1]) > self.Img2.shape[0]):
+				inputPoint1 = self.points1[self.points2.index(targetPoint1)]
+				inputPoint2 = self.points1[self.points2.index(targetPoint2)]
+				inputPoint3 = self.points1[self.points2.index(targetPoint3)]
+			else:
+				inputPoint1 = (inputTriangles[i][0], inputTriangles[i][1])
+				inputPoint2 = (inputTriangles[i][2], inputTriangles[i][3])
+				inputPoint3 = (inputTriangles[i][4], inputTriangles[i][5])
+						
 			mArray = np.array([[inputPoint1[0], inputPoint1[1], 1, 0 ,0 ,0],[0, 0, 0, inputPoint1[0], inputPoint1[1], 1],[inputPoint2[0], inputPoint2[1], 1, 0 ,0 ,0], [0, 0, 0, inputPoint2[0], inputPoint2[1], 1], [inputPoint3[0], inputPoint3[1], 1, 0 ,0 ,0], [0, 0, 0, inputPoint3[0], inputPoint3[1], 1]])
 			invMArray = np.linalg.inv(mArray)
 
@@ -260,55 +296,90 @@ class Window(QtWidgets.QMainWindow):
 
 			self.affineTransCoeffs.append(invMArray.dot(bArray))
 
+			if(i == 15):
+				print(mArray)
+				print(invMArray)
+				print(bArray)
+				print(invMArray.dot(bArray))
+
+				print("")
+				print(inputPoint1, " - ", inputPoint2, " - ", inputPoint3)
+				print(targetPoint1, " - ", targetPoint2, " - ", targetPoint3)
+
+		#print(self.affineTransCoeffs)
+
+	def whichTriangle(self, point):
+		triangles = self.subdiv2.getTriangleList()
+		for t in range(len(triangles)):
+			if self.isInTriangle(point, triangles[t]):
+				return t
+		return -1
 
 	def isInTriangle(self, point, triangle):
 		p1 = (triangle[0], triangle[1])
 		p2 = (triangle[2], triangle[3])
 		p3 = (triangle[4], triangle[5])
 
-		# test the first edge
-		# edge equation is y = mx + c
-		if (p1[0] - p2[0]) == 0:
-			if (p1[0] == point[0]):
-				return True # on the edge
-			elif not (np.sign(p3[1] - (m * p3[0]) - c) == np.sign(point[1] - (m * point[0]) - c)):
-				return False # cannot be in the triangle
+		size = self.Img.shape
+		r = (0, 0, size[1], size[0]) 
+
+		if self.rect_contains(r, p1) and self.rect_contains(r, p2) and self.rect_contains(r, p3) :
+			# test the first edge
+			# edge equation is y = mx + c
+			if (p1[0] - p2[0]) == 0:
+				if (p1[0] == point[0]):
+					return True # on the edge
+				elif not (np.sign(p3[0] - p1[0]) == np.sign(point[0] - p1[0])):
+					return False # cannot be in the triangle
+			else:
+				m = (p1[1] - p2[1]) / (p1[0] - p2[0])
+				c = p1[1] - (m * p1[0])
+				if np.sign(point[1] - (m * point[0]) - c) == 0:
+					return True # on the edge
+				elif not (np.sign(p3[1] - (m * p3[0]) - c) == np.sign(point[1] - (m * point[0]) - c)):
+					return False # cannot be in the triangle
+
+			# test the second edge
+			if (p1[0] - p3[0]) == 0:
+				if (p1[0] == point[0]):
+					return True # on the edge
+				elif not (np.sign(p2[0] - p1[0]) == np.sign(point[0] - p1[0])):
+					return False # cannot be in the triangle
+			else:
+				m = (p1[1] - p3[1]) / (p1[0] - p3[0])
+				c = p1[1] - (m * p1[0])
+				if np.sign(point[1] - (m * point[0]) - c) == 0:
+					return True # on the edge
+				elif not (np.sign(p2[1] - (m * p2[0]) - c) == np.sign(point[1] - (m * point[0]) - c)):
+					return False # cannot be in the triangle
+
+			# test the third edge
+			if (p2[0] - p3[0]) == 0:
+				if (p2[0] == point[0]):
+					return True # on the edge
+				elif not (np.sign(p3[0] - p2[0]) == np.sign(point[0] - p2[0])):
+					return False # cannot be in the triangle
+			else:
+				m = (p2[1] - p3[1]) / (p2[0] - p3[0])
+				c = p2[1] - (m * p2[0])
+				if np.sign(point[1] - (m * point[0]) - c) == 0:
+					return True # on the edge
+				elif not (np.sign(p1[1] - (m * p1[0]) - c) == np.sign(point[1] - (m * point[0]) - c)):
+					return False # cannot be in the triangle
+			return True
 		else:
-			m = (p1[1] - p2[1]) / (p1[0] - p2[0])
-			c = p1[1] - (m * p1[0])
-			if np.sign(point[1] - (m * point[0]) - c) == 0:
-				return True # on the edge
-			elif not (np.sign(p3[1] - (m * p3[0]) - c) == np.sign(point[1] - (m * point[0]) - c)):
-				return False # cannot be in the triangle
-		
-		# test the second edge
-		if (p1[0] - p3[0]) == 0:
-			if (p1[0] == point[0]):
-				return True # on the edge
-			elif not (np.sign(p2[1] - (m * p2[0]) - c) == np.sign(point[1] - (m * point[0]) - c)):
-				return False # cannot be in the triangle
-		else:
-			m = (p1[1] - p3[1]) / (p1[0] - p3[0])
-			c = p1[1] - (m * p1[0])
-			if np.sign(point[1] - (m * point[0]) - c) == 0:
-				return True # on the edge
-			elif not (np.sign(p2[1] - (m * p2[0]) - c) == np.sign(point[1] - (m * point[0]) - c)):
-				return False # cannot be in the triangle
-		
-		# test the third edge
-		if (p2[0] - p3[0]) == 0:
-			if (p2[0] == point[0]):
-				return True # on the edge
-			elif not (np.sign(p1[1] - (m * p1[0]) - c) == np.sign(point[1] - (m * point[0]) - c)):
-				return False # cannot be in the triangle
-		else:
-			m = (p2[1] - p3[1]) / (p2[0] - p3[0])
-			c = p2[1] - (m * p2[0])
-			if np.sign(point[1] - (m * point[0]) - c) == 0:
-				return True # on the edge
-			elif not (np.sign(p1[1] - (m * p1[0]) - c) == np.sign(point[1] - (m * point[0]) - c)):
-				return False # cannot be in the triangle
-		return True
+			return False
+
+	def bilinearInterpolation(self, x, y):
+		a = x - floor(x)
+		b = y - floor(y)
+
+		if x >= self.Img.shape[0] - 1:
+			x = self.Img.shape[0] - 2
+		if y >= self.Img.shape[1] - 1:
+			y = self.Img.shape[1] - 2
+
+		return ((1 - a) * (1 - b) * self.Img[floor(x)][floor(y)]) + (a * b * self.Img[ceil(x)][ceil(y)]) + ((1 - a) * b * self.Img[floor(x)][ceil(y)]) + (a * (1 - b) * self.Img[ceil(x)][floor(y)])
 
 def main():
 	app = QtWidgets.QApplication(sys.argv)
