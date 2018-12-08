@@ -157,15 +157,15 @@ class Window(QtWidgets.QMainWindow):
 	
 		for t in triangleList :
 		
-			pt1 = (t[0], t[1])
-			pt2 = (t[2], t[3])
-			pt3 = (t[4], t[5])
+			p1 = (t[0], t[1])
+			p2 = (t[2], t[3])
+			p3 = (t[4], t[5])
 	
-			if self.rect_contains(r, pt1) and self.rect_contains(r, pt2) and self.rect_contains(r, pt3) :
+			if self.rect_contains(r, p1) and self.rect_contains(r, p2) and self.rect_contains(r, p3) :
 			
-				cv2.line(img, pt1, pt2, delaunay_color, 1, cv2.LINE_AA, 0)
-				cv2.line(img, pt2, pt3, delaunay_color, 1, cv2.LINE_AA, 0)
-				cv2.line(img, pt3, pt1, delaunay_color, 1, cv2.LINE_AA, 0)
+				cv2.line(img, p1, p2, delaunay_color, 1, cv2.LINE_AA, 0)
+				cv2.line(img, p2, p3, delaunay_color, 1, cv2.LINE_AA, 0)
+				cv2.line(img, p3, p1, delaunay_color, 1, cv2.LINE_AA, 0)
  
 
 	def create_triangulation(self):
@@ -240,8 +240,54 @@ class Window(QtWidgets.QMainWindow):
 	def affineTransformEstimation(self):
 		return NotImplementedError
 
-	def isInTriangle(self):
-		return NotImplementedError
+	def isInTriangle(self, point, triangle):
+		p1 = (triangle[0], triangle[1])
+		p2 = (triangle[2], triangle[3])
+		p3 = (triangle[4], triangle[5])
+
+		# test the first edge
+		# edge equation is y = mx + c
+		if (p1[0] - p2[0]) == 0:
+			if (p1[0] == point[0]):
+				return True # on the edge
+			elif not (np.sign(p3[1] - (m * p3[0]) - c) == np.sign(point[1] - (m * point[0]) - c)):
+				return False # cannot be in the triangle
+		else:
+			m = (p1[1] - p2[1]) / (p1[0] - p2[0])
+			c = p1[1] - (m * p1[0])
+			if np.sign(point[1] - (m * point[0]) - c) == 0:
+				return True # on the edge
+			elif not (np.sign(p3[1] - (m * p3[0]) - c) == np.sign(point[1] - (m * point[0]) - c)):
+				return False # cannot be in the triangle
+		
+		# test the second edge
+		if (p1[0] - p3[0]) == 0:
+			if (p1[0] == point[0]):
+				return True # on the edge
+			elif not (np.sign(p2[1] - (m * p2[0]) - c) == np.sign(point[1] - (m * point[0]) - c)):
+				return False # cannot be in the triangle
+		else:
+			m = (p1[1] - p3[1]) / (p1[0] - p3[0])
+			c = p1[1] - (m * p1[0])
+			if np.sign(point[1] - (m * point[0]) - c) == 0:
+				return True # on the edge
+			elif not (np.sign(p2[1] - (m * p2[0]) - c) == np.sign(point[1] - (m * point[0]) - c)):
+				return False # cannot be in the triangle
+		
+		# test the third edge
+		if (p2[0] - p3[0]) == 0:
+			if (p2[0] == point[0]):
+				return True # on the edge
+			elif not (np.sign(p1[1] - (m * p1[0]) - c) == np.sign(point[1] - (m * point[0]) - c)):
+				return False # cannot be in the triangle
+		else:
+			m = (p2[1] - p3[1]) / (p2[0] - p3[0])
+			c = p2[1] - (m * p2[0])
+			if np.sign(point[1] - (m * point[0]) - c) == 0:
+				return True # on the edge
+			elif not (np.sign(p1[1] - (m * p1[0]) - c) == np.sign(point[1] - (m * point[0]) - c)):
+				return False # cannot be in the triangle
+		return True
 
 def main():
 	app = QtWidgets.QApplication(sys.argv)
