@@ -23,6 +23,9 @@ class Window(QtWidgets.QMainWindow):
 		self.outputImg = None
 		self.subdiv1 = None
 		self.subdiv2 = None
+		self.affineTransCoeffs = []
+		self.points1 = None
+		self.points2 = None
 		self.isInputOpen = False
 		self.isTargetOpen = False
 
@@ -182,36 +185,36 @@ class Window(QtWidgets.QMainWindow):
 		self.subdiv1 = cv2.Subdiv2D(rect1)
 		self.subdiv2 = cv2.Subdiv2D(rect2)
 
-		points1 = []
-		points2 = []
+		self.points1 = []
+		self.points2 = []
 
 		with open("inputPoints.txt") as file:
 			for line in file:
 				x, y = line.split(',')
-				points1.append((int(x), int(y)))
+				self.points1.append((int(x), int(y)))
 		
 		with open("targetPoints.txt") as file:
 			for line in file:
 				x, y = line.split(',')
-				points2.append((int(x), int(y)))
+				self.points2.append((int(x), int(y)))
 
-		for point in points1:
+		for point in self.points1:
 			self.subdiv1.insert(point)
 		
-		for point in points2:
+		for point in self.points2:
 			self.subdiv2.insert(point)
 
 		self.draw_delaunay(triangulatedInput, self.subdiv1, (255, 255, 255))
 		self.draw_delaunay(triangulatedTarget, self.subdiv2, (255, 255, 255))
 		self.draw_delaunay(triangulationOutputImg, self.subdiv2, (255, 255, 255))
 
-		for point in points1:
+		for point in self.points1:
 			self.draw_point(triangulatedInput, point, (0, 255, 255))
 		
-		for point in points2:
+		for point in self.points2:
 			self.draw_point(triangulatedTarget, point, (0, 255, 255))
 		
-		for point in points2:
+		for point in self.points2:
 			self.draw_point(triangulationOutputImg, point, (0, 255, 255))
 
 		R, C, B = triangulatedInput.shape
@@ -235,10 +238,28 @@ class Window(QtWidgets.QMainWindow):
 		self.VerticalLayout3.addWidget(self.label3)
 
 	def morph(self):
-		return NotImplementedError
+		self.affineTransformEstimation(self.subdiv1, self.subdiv2)
 
-	def affineTransformEstimation(self):
-		return NotImplementedError
+	def affineTransformEstimation(self, sd1, sd2):
+		inputTriangles = sd1.getTriangleList()
+		targetTriangles = sd2.getTriangleList()
+		for i in range(len(inputTriangles)):
+			
+			inputPoint1 = (inputTriangles[i][0], inputTriangles[i][1])
+			inputPoint2 = (inputTriangles[i][2], inputTriangles[i][3])
+			inputPoint3 = (inputTriangles[i][4], inputTriangles[i][5])
+
+			targetPoint1 = (targetTriangles[i][0], targetTriangles[i][1])
+			targetPoint2 = (targetTriangles[i][2], targetTriangles[i][3])
+			targetPoint3 = (targetTriangles[i][4], targetTriangles[i][5])
+			
+			mArray = np.array([[inputPoint1[0], inputPoint1[1], 1, 0 ,0 ,0],[0, 0, 0, inputPoint1[0], inputPoint1[1], 1],[inputPoint2[0], inputPoint2[1], 1, 0 ,0 ,0], [0, 0, 0, inputPoint2[0], inputPoint2[1], 1], [inputPoint3[0], inputPoint3[1], 1, 0 ,0 ,0], [0, 0, 0, inputPoint3[0], inputPoint3[1], 1]])
+			invMArray = np.linalg.inv(mArray)
+
+			bArray = np.array([targetPoint1[0], targetPoint1[1], targetPoint2[0], targetPoint2[1], targetPoint3[0], targetPoint3[1]])
+
+			self.affineTransCoeffs.append(invMArray.dot(bArray))
+
 
 	def isInTriangle(self, point, triangle):
 		p1 = (triangle[0], triangle[1])
