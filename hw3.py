@@ -21,6 +21,8 @@ class Window(QtWidgets.QMainWindow):
 		self.Img = None
 		self.Img2 = None
 		self.outputImg = None
+		self.subdiv1 = None
+		self.subdiv2 = None
 		self.isInputOpen = False
 		self.isTargetOpen = False
 
@@ -167,16 +169,18 @@ class Window(QtWidgets.QMainWindow):
  
 
 	def create_triangulation(self):
-		copyOfImg1 = self.Img.copy()
+		triangulationOutputImg = self.Img.copy()
+		triangulatedInput = self.Img.copy()
+		triangulatedTarget = self.Img2.copy()
 
-		inputSize = self.Img.shape
-		targetSize = self.Img2.shape
+		inputSize = triangulatedInput.shape
+		targetSize = triangulatedTarget.shape
 
 		rect1 = (0,0,inputSize[1], inputSize[0])
 		rect2 = (0,0,targetSize[1], targetSize[0])
 
-		subdiv1 = cv2.Subdiv2D(rect1)
-		subdiv2 = cv2.Subdiv2D(rect2)
+		self.subdiv1 = cv2.Subdiv2D(rect1)
+		self.subdiv2 = cv2.Subdiv2D(rect2)
 
 		points1 = []
 		points2 = []
@@ -192,36 +196,36 @@ class Window(QtWidgets.QMainWindow):
 				points2.append((int(x), int(y)))
 
 		for point in points1:
-			subdiv1.insert(point)
+			self.subdiv1.insert(point)
 		
 		for point in points2:
-			subdiv2.insert(point)
+			self.subdiv2.insert(point)
 
-		self.draw_delaunay(self.Img, subdiv1, (255, 255, 255))
-		self.draw_delaunay(self.Img2, subdiv2, (255, 255, 255))
-		self.draw_delaunay(copyOfImg1, subdiv2, (255, 255, 255))
+		self.draw_delaunay(triangulatedInput, self.subdiv1, (255, 255, 255))
+		self.draw_delaunay(triangulatedTarget, self.subdiv2, (255, 255, 255))
+		self.draw_delaunay(triangulationOutputImg, self.subdiv2, (255, 255, 255))
 
 		for point in points1:
-			self.draw_point(self.Img, point, (0, 255, 255))
+			self.draw_point(triangulatedInput, point, (0, 255, 255))
 		
 		for point in points2:
-			self.draw_point(self.Img2, point, (0, 255, 255))
+			self.draw_point(triangulatedTarget, point, (0, 255, 255))
 		
 		for point in points2:
-			self.draw_point(copyOfImg1, point, (0, 255, 255))
+			self.draw_point(triangulationOutputImg, point, (0, 255, 255))
 
-		R, C, B = self.Img.shape
-		qImg = QtGui.QImage(self.Img.data, C, R, 3 * C, QtGui.QImage.Format_RGB888).rgbSwapped()
+		R, C, B = triangulatedInput.shape
+		qImg = QtGui.QImage(triangulatedInput.data, C, R, 3 * C, QtGui.QImage.Format_RGB888).rgbSwapped()
 		pix = QtGui.QPixmap(qImg)
 		self.label.setPixmap(pix)
 
-		R, C, B = self.Img2.shape
-		qImg2 = QtGui.QImage(self.Img2.data, C, R, 3 * C, QtGui.QImage.Format_RGB888).rgbSwapped()
+		R, C, B = triangulatedTarget.shape
+		qImg2 = QtGui.QImage(triangulatedTarget.data, C, R, 3 * C, QtGui.QImage.Format_RGB888).rgbSwapped()
 		pix2 = QtGui.QPixmap(qImg2)
 		self.label2.setPixmap(pix2)
 
-		R, C, B = copyOfImg1.shape
-		qImg3 = QtGui.QImage(copyOfImg1.data, C, R, 3 * C, QtGui.QImage.Format_RGB888).rgbSwapped()
+		R, C, B = triangulationOutputImg.shape
+		qImg3 = QtGui.QImage(triangulationOutputImg.data, C, R, 3 * C, QtGui.QImage.Format_RGB888).rgbSwapped()
 		
 		self.label3 = QtWidgets.QLabel(self.centralwidget)
 		pix3 = QtGui.QPixmap(qImg3)
@@ -231,6 +235,12 @@ class Window(QtWidgets.QMainWindow):
 		self.VerticalLayout3.addWidget(self.label3)
 
 	def morph(self):
+		return NotImplementedError
+
+	def affineTransformEstimation(self):
+		return NotImplementedError
+
+	def isInTriangle(self):
 		return NotImplementedError
 
 def main():
